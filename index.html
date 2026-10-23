@@ -662,7 +662,7 @@ const Engine = {
       if (!this.has(st, actor) || st.phase !== 'claim') return null;
       const len = st.hands[actor].length;
       st.claims[actor] = { d: Math.max(0, Math.min(len, a.d | 0)), b: !!a.b };
-      if (st.early && st.players.every(p => st.claims[p.id])) st.phase = 'cut';
+      if (st.players.every(p => st.claims[p.id])) st.phase = 'cut'; // tout le monde a validé : on révèle tout de suite
       return st;
     }
     if (a.type === 'closeclaims') {
@@ -1112,7 +1112,7 @@ function openClaim() {
   const draft = prev && !prev.none ? { d: prev.d, b: prev.b } : { d: c.D, b: c.B > 0 };
   UI.claimOpen = true; UI.draft = draft; UI.draftKey = st.game + ':' + st.round;
   const m = showModal(`<h3>📣 ${prev ? 'Modifier ton annonce' : 'Ton annonce'} · Manche ${st.round}</h3>
-    <div class="claimclock">⏱ <span class="claimTimer">${fmtLeft(claimLeft(st))}</span><small>Tout le monde a le même temps. Personne ne voit qui a validé, et tout est révélé à la fin du chrono.</small></div>
+    <div class="claimclock">⏱ <span class="claimTimer">${fmtLeft(claimLeft(st))}</span><small>Personne ne voit qui a validé. Tout est révélé dès que tout le monde a validé, ou à la fin du chrono.</small></div>
     <div class="realhand">${sorted.map((x, i) => cardHTML(x.k, `style="animation-delay:${i * .07}s"`)).join('')}</div>
     <p class="hint">Voilà tes fils. Ils sont maintenant mélangés face cachée devant toi : tu sais ce que tu as, mais pas où ils sont.</p>
     <div class="fieldrow"><span>🔵 Fils de désamorçage</span><div class="stepper"><button class="btn btn-icon" id="cdM">−</button><span id="cdV">${draft.d}</span><button class="btn btn-icon" id="cdP">+</button></div></div>
@@ -1127,7 +1127,7 @@ function openClaim() {
   m.querySelector('#cbY').onclick = () => { draft.b = true; Sound.click(); upd(); };
   m.querySelector('#cbN').onclick = () => { draft.b = false; Sound.click(); upd(); };
   m.querySelector('#cLater').onclick = () => { UI.claimSkip = st.game + ':' + st.round; closeModal(); render(); };
-  m.querySelector('#cGo').onclick = () => { closeModal(); Sound.pop(); act({ type: 'claim', d: draft.d, b: draft.b }); toast('🔒 Annonce enregistrée. Tu peux la modifier jusqu\'à la fin du chrono.'); };
+  m.querySelector('#cGo').onclick = () => { closeModal(); Sound.pop(); act({ type: 'claim', d: draft.d, b: draft.b }); toast('🔒 Annonce enregistrée. Tu peux la modifier tant que tout le monde n\'a pas validé.'); };
 }
 
 /* ---------- Résultats ---------- */
@@ -1339,7 +1339,7 @@ function renderActionbar(st, { me, isPlayer, host, canCut }) {
   } else if (st.phase === 'claim') {
     const t = `<b class="claimTimer timerchip">${fmtLeft(claimLeft(st))}</b>`;
     if (isPlayer && !st.claims[me]) { status = `${t} 📣 Fais ton annonce : combien de 🔵, et as-tu la 💣 ?`; cls = 'myturn'; btns += `<button class="btn btn-yellow" data-a="claim">📣 Annoncer</button>`; }
-    else if (isPlayer) { status = `${t} 🔒 Annonce enregistrée. Révélation de toutes les annonces à la fin du chrono.`; btns += `<button class="btn btn-small" data-a="claim">✏️ Modifier</button>`; }
+    else if (isPlayer) { status = `${t} 🔒 Annonce enregistrée. Révélation dès que tout le monde a validé, ou à la fin du chrono.`; btns += `<button class="btn btn-small" data-a="claim">✏️ Modifier</button>`; }
     else status = `${t} 🤫 Annonces secrètes en cours…`;
   } else if (st.phase === 'cut') {
     if (canCut) {
