@@ -160,6 +160,10 @@ input.field:focus{outline:3px solid var(--yellow);outline-offset:2px}
 .claim .cb.b{background:var(--red)}
 .claim .cb.lie{background:#8b00ff;animation:shakeX .5s}
 .claim em{opacity:.6}
+.claimclock{display:flex;align-items:center;gap:8px;flex-wrap:wrap;background:var(--ink);color:var(--yellow);border-radius:12px;padding:8px 12px;font-family:Bungee,sans-serif;font-size:1.4rem}
+.claimclock small{font-family:Rubik,system-ui,sans-serif;font-size:.75rem;color:#fff;font-weight:700;flex:1 1 180px;line-height:1.3}
+.timerchip{font-family:Bungee,sans-serif;background:var(--ink);color:var(--yellow);border-radius:8px;padding:2px 8px;margin-right:4px;white-space:nowrap}
+.timerchip.hurry,.claimclock.hurry{color:#ff3b4e;animation:turnPulse .5s ease-in-out infinite}
 .claim .cb.ready{background:var(--green);color:var(--ink);animation:readyPop .4s cubic-bezier(.2,1.8,.4,1)}
 .claim .cb.lock{background:#5a5680}
 @keyframes readyPop{from{transform:scale(0)}}
@@ -639,9 +643,11 @@ const Engine = {
       scores: clone(prev?.scores || {}), nonces: clone(prev?.nonces || {}), bots: clone(prev?.bots || [])
     };
     st.players.forEach(p => Engine.sc(st, p));
-    this.deal(st, cards); return st;
+    st.claimSec = prev?.claimSec || 30;
+    this.deal(st, cards); this.openClaims(st, 7500); return st;
   },
   PTS_D: 1, PTS_WIN: 3,
+  openClaims(st, extra) { st.phase = 'claim'; st.claims = {}; st.claimEnd = Date.now() + extra + (st.claimSec || 30) * 1000; },
   sc(st, p) { const sc = st.scores[p.id] || (st.scores[p.id] = { name: p.name, w: 0, g: 0 }); sc.name = p.name; sc.pts = sc.pts || 0; sc.d = sc.d || 0; if (p.bot) sc.bot = true; return sc; },
   deal(st, cards) {
     shuffle(cards); const per = cards.length / st.players.length;
@@ -653,13 +659,17 @@ const Engine = {
   apply(st, a, actor) {
     if (!st || st.winner || !st.players) return null;
     if (a.type === 'claim') {
-      if (!this.has(st, actor) || !(st.phase === 'claim' || st.phase === 'cut') || st.claims[actor]) return null;
+      if (!this.has(st, actor) || st.phase !== 'claim') return null;
       const len = st.hands[actor].length;
       st.claims[actor] = { d: Math.max(0, Math.min(len, a.d | 0)), b: !!a.b };
-      if (st.phase === 'claim' && st.players.every(p => st.claims[p.id])) st.phase = 'cut';
+      if (st.early && st.players.every(p => st.claims[p.id])) st.phase = 'cut';
       return st;
     }
-    if (a.type === 'force') { if (st.phase !== 'claim') return null; st.phase = 'cut'; return st; }
+    if (a.type === 'closeclaims') {
+      if (st.phase !== 'claim' || Date.now() < st.claimEnd) return null;
+      st.players.forEach(p => { if (!st.claims[p.id]) st.claims[p.id] = { none: true, d: 0, b: false }; });
+      st.phase = 'cut'; return st;
+    }
     if (a.type === 'cut') {
       if (st.phase !== 'cut' || actor !== st.pliers || a.to === actor || !this.has(st, a.to)) return null;
       const c = st.hands[a.to] && st.hands[a.to][a.i]; if (!c || c.up) return null;
@@ -672,7 +682,7 @@ const Engine = {
       if (st.cuts >= st.players.length) {
         if (st.round >= this.ROUNDS) return this.end(st, 'M', 'time');
         const rest = []; st.players.forEach(p => st.hands[p.id].forEach(x => { if (!x.up) rest.push(x.k); }));
-        st.round++; st.cuts = 0; st.claims = {}; st.phase = 'claim'; this.deal(st, rest);
+        st.round++; st.cuts = 0; this.deal(st, rest); this.openClaims(st, 3500);
       }
       return st;
     }
@@ -711,7 +721,7 @@ const Bots = {
     const base = (st.totalD - st.found) / Math.max(1, hidden);
     let best = opts[0], bs = -1;
     for (const o of opts) {
-      const cl = st.claims[o.p.id], revD = o.h.filter(x => x.up && x.k === 'D').length;
+      const cl0 = st.claims[o.p.id], cl = cl0 && !cl0.none ? cl0 : null, revD = o.h.filter(x => x.up && x.k === 'D').length;
       let trust = cl ? 1 : .5; if (cl && revD > cl.d) trust = .2;
       const remD = cl ? Math.max(0, cl.d - revD) : base * o.hid.length;
       let s;
@@ -749,14 +759,14 @@ const present = id => Net.mode === 'solo' || isBot(id) || Net.roster.some(p => p
 const myId = () => Net.me?.id;
 const pname = (st, id) => (st.players?.find(p => p.id === id)?.name) || (Net.roster.find(p => p.id === id)?.name) || '???';
 
-function lobbyState(prev) { return { phase: 'lobby', game: null, bots: clone(prev?.bots || []), scores: clone(prev?.scores || {}), nonces: clone(prev?.nonces || {}) }; }
+function lobbyState(prev) { return { phase: 'lobby', game: null, claimSec: prev?.claimSec || 30, bots: clone(prev?.bots || []), scores: clone(prev?.scores || {}), nonces: clone(prev?.nonces || {}) }; }
 function lobbyPlayers(st) {
   const humans = Net.mode === 'solo' ? [{ id: Net.me.id, name: Net.me.name }] : Net.roster.map(p => ({ id: p.id, name: p.name }));
   return [...humans, ...(st.bots || [])].slice(0, 8);
 }
 
 function publish(st) {
-  st.v = (S?.v || 0) + 1;
+  st.v = (S?.v || 0) + 1; st.sent = Date.now();
   if (Net.mode === 'online') { try { Net.room.send({ t: 'state', d: encode(st) }, { keep: true }); } catch (e) { console.error(e); } }
   else if (Net.mode === 'solo') LS.set('tb-solo', st);
   setState(st);
@@ -766,7 +776,12 @@ function setState(st) {
   const snap = st;
   pipe = pipe.then(() => presentState(snap)).catch(e => { console.error(e); UI.busy = false; render(true); });
 }
-function onRemoteState(st) { if (S && st.v <= S.v) return; setState(st); }
+function onRemoteState(st) {
+  if (S && st.v <= S.v) return;
+  if (st.sent) UI.clockOff = Date.now() - st.sent; // décalage d'horloge approximatif avec l'hôte
+  setState(st);
+}
+const claimLeft = st => (st.claimEnd || 0) + (isHost() ? 0 : (UI.clockOff || 0)) - Date.now();
 
 function act(a) {
   if (!S || !Net.me) return;
@@ -785,7 +800,8 @@ function handleAct(actor, a) {
   let next = null;
   switch (a.type) {
     case 'claim': case 'cut': next = Engine.apply(st, a, actor); break;
-    case 'force': if (byHost) next = Engine.apply(st, a, actor); break;
+    case 'closeclaims': if (byHost) next = Engine.apply(st, a, actor); break;
+    case 'claimsec': if (byHost && st.phase === 'lobby' && [20, 30, 45, 60].includes(a.s)) { st.claimSec = a.s; next = st; } break;
     case 'proxycut':
       if (byHost && st.phase === 'cut' && !present(st.pliers)) { const c = Bots.cut(st, st.pliers, true); if (c) next = Engine.apply(st, c, st.pliers); }
       break;
@@ -797,18 +813,19 @@ function handleAct(actor, a) {
       break;
     case 'rmbot': if (byHost && st.phase === 'lobby' && st.bots.length) { st.bots = st.bots.filter(b => b.id !== a.id); next = st; } break;
     case 'start':
-      if (byHost && st.phase === 'lobby') { const pl = lobbyPlayers(st); if (pl.length >= 4 && pl.length <= 8) next = Engine.newGame(shuffle(pl), st); }
+      if (byHost && st.phase === 'lobby') { const pl = lobbyPlayers(st); if (pl.length >= 4 && pl.length <= 8) { next = Engine.newGame(shuffle(pl), st); next.early = Net.mode === 'solo'; } }
       break;
     case 'again':
       if (byHost && st.phase === 'end') {
         const pl = st.players.filter(p => present(p.id));
         const bots = st.players.filter(p => p.bot).map(p => ({ id: p.id, name: p.name, bot: true }));
-        const base = { scores: st.scores, nonces: st.nonces, bots };
+        const base = { scores: st.scores, nonces: st.nonces, bots, claimSec: st.claimSec };
         next = pl.length >= 4 ? Engine.newGame(shuffle(pl), base) : lobbyState(base);
+        if (next.players) next.early = Net.mode === 'solo';
       }
       break;
     case 'tolobby':
-      if (byHost && st.phase === 'end') next = lobbyState({ scores: st.scores, nonces: st.nonces, bots: st.players.filter(p => p.bot).map(p => ({ id: p.id, name: p.name, bot: true })) });
+      if (byHost && st.phase === 'end') next = lobbyState({ claimSec: st.claimSec, scores: st.scores, nonces: st.nonces, bots: st.players.filter(p => p.bot).map(p => ({ id: p.id, name: p.name, bot: true })) });
       break;
   }
   if (!next) return;
@@ -1038,7 +1055,7 @@ async function roleReveal(st) {
 async function claimReveal(st) {
   closeModal();
   UI.claimHide = true; render(true);
-  const ov = showOverlay(`<div class="interlude"><div class="il-small">Tout le monde a annoncé…</div><div class="countdown" id="cdn">3</div><div class="il-sub">Révélation des annonces !</div></div>`);
+  const ov = showOverlay(`<div class="interlude"><div class="il-small">🔒 Annonces verrouillées…</div><div class="countdown" id="cdn">3</div><div class="il-sub">Révélation des annonces !</div></div>`);
   for (const n of ['3', '2', '1']) {
     const c = ov.querySelector('#cdn'); if (c) { c.textContent = n; c.style.animation = 'none'; void c.offsetWidth; c.style.animation = ''; }
     Sound.tone(n === '1' ? 880 : 660, .15, { type: 'square', vol: .15 }); FX.shake(false);
@@ -1083,23 +1100,25 @@ function ask(text, yes = 'Oui', no = 'Annuler') {
 function maybeOpenClaim() {
   const st = shown; if (!st || UI.busy || UI.claimOpen || !$('#overlay').classList.contains('hidden')) return;
   const me = myId();
-  if (!st.players || !st.roles[me] || st.claims[me] || !(st.phase === 'claim')) return;
+  if (!st.players || !st.roles[me] || st.claims[me] || st.phase !== 'claim' || claimLeft(st) < 1500) return;
   if (UI.claimSkip === st.game + ':' + st.round) return;
   openClaim();
 }
+function fmtLeft(ms) { const t = Math.max(0, Math.ceil(ms / 1000)); return Math.floor(t / 60) + ':' + String(t % 60).padStart(2, '0'); }
 function openClaim() {
-  const st = shown, me = myId(); if (!st || !st.hands?.[me] || st.claims[me]) return;
-  const h = st.hands[me], c = Engine.count(h), role = st.roles[me];
+  const st = shown, me = myId(); if (!st || !st.hands?.[me] || st.phase !== 'claim') return;
+  const h = st.hands[me], c = Engine.count(h), role = st.roles[me], prev = st.claims[me];
   const sorted = [...h].sort((a, b) => 'DSB'.indexOf(a.k) - 'DSB'.indexOf(b.k));
-  const draft = { d: c.D, b: c.B > 0 };
-  UI.claimOpen = true;
-  const m = showModal(`<h3>📣 Ton annonce · Manche ${st.round}</h3>
+  const draft = prev && !prev.none ? { d: prev.d, b: prev.b } : { d: c.D, b: c.B > 0 };
+  UI.claimOpen = true; UI.draft = draft; UI.draftKey = st.game + ':' + st.round;
+  const m = showModal(`<h3>📣 ${prev ? 'Modifier ton annonce' : 'Ton annonce'} · Manche ${st.round}</h3>
+    <div class="claimclock">⏱ <span class="claimTimer">${fmtLeft(claimLeft(st))}</span><small>Tout le monde a le même temps. Personne ne voit qui a validé, et tout est révélé à la fin du chrono.</small></div>
     <div class="realhand">${sorted.map((x, i) => cardHTML(x.k, `style="animation-delay:${i * .07}s"`)).join('')}</div>
     <p class="hint">Voilà tes fils. Ils sont maintenant mélangés face cachée devant toi : tu sais ce que tu as, mais pas où ils sont.</p>
     <div class="fieldrow"><span>🔵 Fils de désamorçage</span><div class="stepper"><button class="btn btn-icon" id="cdM">−</button><span id="cdV">${draft.d}</span><button class="btn btn-icon" id="cdP">+</button></div></div>
     <div class="fieldrow"><span>💣 La bombe</span><div class="seg"><button id="cbY">Je l'ai</button><button id="cbN">Pas moi</button></div></div>
     <p class="hint ${role}">${role === 'M' ? '😈 Moriarty : tu as le droit de mentir. Bluffe bien !' : '🕵️ Sherlock : dis la vérité, ton équipe compte sur toi.'}</p>
-    <div class="row" style="margin-top:12px"><button class="btn" id="cLater">Plus tard</button><button class="btn btn-yellow" id="cGo" style="flex:2">📣 Annoncer</button></div>`);
+    <div class="row" style="margin-top:12px"><button class="btn" id="cLater">Plus tard</button><button class="btn btn-yellow" id="cGo" style="flex:2">${prev ? '✅ Mettre à jour' : '📣 Valider'}</button></div>`);
   Sound.shuffle();
   const upd = () => { $('#cdV').textContent = draft.d; $('#cbY').classList.toggle('on', draft.b); $('#cbN').classList.toggle('on', !draft.b); };
   upd();
@@ -1108,7 +1127,7 @@ function openClaim() {
   m.querySelector('#cbY').onclick = () => { draft.b = true; Sound.click(); upd(); };
   m.querySelector('#cbN').onclick = () => { draft.b = false; Sound.click(); upd(); };
   m.querySelector('#cLater').onclick = () => { UI.claimSkip = st.game + ':' + st.round; closeModal(); render(); };
-  m.querySelector('#cGo').onclick = () => { closeModal(); Sound.pop(); act({ type: 'claim', d: draft.d, b: draft.b }); };
+  m.querySelector('#cGo').onclick = () => { closeModal(); Sound.pop(); act({ type: 'claim', d: draft.d, b: draft.b }); toast('🔒 Annonce enregistrée. Tu peux la modifier jusqu\'à la fin du chrono.'); };
 }
 
 /* ---------- Résultats ---------- */
@@ -1197,6 +1216,7 @@ function renderLobby(st) {
       ${humans + (st.bots || []).length > 8 ? `<p class="hint">Salle pleine : certains bots restent sur le banc.</p>` : ''}
       <div class="chips">${roleInfo || `<span class="chip">Il faut entre 4 et 8 joueurs</span>`}</div>
       <div class="lobby-actions">
+        <div class="fieldrow" style="margin:4px 0"><span>⏱ Temps d'annonce</span>${host ? `<div class="seg">${[20, 30, 45, 60].map(x => `<button data-a="claimsec" data-s="${x}" class="${(st.claimSec || 30) === x ? 'on' : ''}">${x}s</button>`).join('')}</div>` : `<b>${st.claimSec || 30} s</b>`}</div>
         ${host ? `<div class="row"><button class="btn" data-a="addbot" ${n >= 8 ? 'disabled' : ''}>🤖 + Ajouter un bot</button></div>
           <button class="btn btn-yellow big" data-a="start" ${n < 4 || n > 8 ? 'disabled' : ''}>💣 LANCER LA PARTIE</button>
           ${n < 4 ? `<p class="hint" style="text-align:center">Encore ${4 - n} joueur${4 - n > 1 ? 's' : ''} (ou bots) pour commencer.</p>` : ''}`
@@ -1258,10 +1278,11 @@ function renderGame(st) {
   if (UI.sel && (UI.sel.v !== st.v || !canCut)) UI.sel = null;
   $('#seats').innerHTML = order.map((p, seatI) => {
     const h = st.hands[p.id] || [], cl = st.claims[p.id], isMe = p.id === me, holder = st.pliers === p.id && st.phase !== 'end';
-    const revD = h.filter(x => x.up && x.k === 'D').length, lie = cl && revD > cl.d;
+    const revD = h.filter(x => x.up && x.k === 'D').length, lie = cl && !cl.none && revD > cl.d;
     const hide = st.phase === 'claim' || UI.claimHide, ra = UI.revealAnim ? ` revealIn" style="animation-delay:${.15 + seatI * .16}s` : '';
-    const claim = !cl ? (st.phase === 'end' ? '<em>—</em>' : `<em>annonce en cours<span class="dots"></span></em>`)
-      : (hide && !isMe) ? `<span class="cb ready">✅ Annonce prête</span>`
+    const claim = (hide && !isMe) ? `<em>🤫 annonce secrète…</em>`
+      : !cl ? (st.phase === 'end' ? '<em>—</em>' : `<em>${isMe ? 'pas encore annoncé' : '🤫 annonce secrète…'}</em>`)
+      : cl.none ? `<span class="cb${ra}">🤐 pas d'annonce</span>`
       : `<span class="cb d ${lie ? 'lie' : ''}${ra}" title="${lie ? 'Plus de fils trouvés qu\'annoncé !' : ''}">🔵 ${cl.d}${lie ? ' 🤥' : ''}</span><span class="cb ${cl.b ? 'b' : ''}${ra}">💣 ${cl.b ? 'OUI' : 'non'}</span>${hide ? '<span class="cb lock" title="Visible par toi seul jusqu\'à la révélation">🔒 secret</span>' : ''}`;
     const cards = h.map((x, i) => {
       const can = canCut && !isMe && !x.up;
@@ -1316,10 +1337,10 @@ function renderActionbar(st, { me, isPlayer, host, canCut }) {
     status = st.winner === 'S' ? '🔵 Bombe désamorcée ! Victoire de Sherlock.' : '💥 Boum ! Victoire de Moriarty.';
     btns += `<button class="btn btn-yellow" data-a="results">🏆 Résultats</button>`;
   } else if (st.phase === 'claim') {
-    const waiting = st.players.filter(p => !st.claims[p.id]);
-    if (isPlayer && !st.claims[me]) { status = '📣 Fais ton annonce : combien de 🔵 et as-tu la 💣 ?'; cls = 'myturn'; btns += `<button class="btn btn-yellow" data-a="claim">📣 Annoncer</button>`; }
-    else status = `🤫 Annonces secrètes en cours… On attend : ${waiting.map(p => esc(p.name)).join(', ')}. Tout sera révélé en même temps !`;
-    if (host && waiting.some(p => !present(p.id))) btns += `<button class="btn btn-small" data-a="force">⏩ Lancer sans attendre</button>`;
+    const t = `<b class="claimTimer timerchip">${fmtLeft(claimLeft(st))}</b>`;
+    if (isPlayer && !st.claims[me]) { status = `${t} 📣 Fais ton annonce : combien de 🔵, et as-tu la 💣 ?`; cls = 'myturn'; btns += `<button class="btn btn-yellow" data-a="claim">📣 Annoncer</button>`; }
+    else if (isPlayer) { status = `${t} 🔒 Annonce enregistrée. Révélation de toutes les annonces à la fin du chrono.`; btns += `<button class="btn btn-small" data-a="claim">✏️ Modifier</button>`; }
+    else status = `${t} 🤫 Annonces secrètes en cours…`;
   } else if (st.phase === 'cut') {
     if (canCut) {
       cls = 'myturn';
@@ -1329,7 +1350,6 @@ function renderActionbar(st, { me, isPlayer, host, canCut }) {
       status = `✂️ <b>${holderName}</b> tient la pince et réfléchit<span class="dots"></span>`;
       if (!present(st.pliers)) { status = `🔌 <b>${holderName}</b> est déconnecté avec la pince…`; if (host) btns += `<button class="btn btn-small" data-a="proxy">🎲 Couper au hasard pour lui</button>`; }
     }
-    if (isPlayer && !st.claims[me]) btns += `<button class="btn btn-small btn-yellow" data-a="claim">📣 Annoncer</button>`;
   }
   if (!isPlayer && st.phase !== 'end') status = '👀 Tu regardes la partie en spectateur. ' + status;
   if (isPlayer && st.phase !== 'end') btns += `<button class="btn btn-icon" data-a="peek" title="Voir mon rôle">🎭</button>`;
@@ -1369,7 +1389,7 @@ document.addEventListener('click', async e => {
     case 'start': Sound.whoosh(); act({ type: 'start' }); break;
     case 'claim': UI.claimSkip = null; openClaim(); break;
     case 'cut': doCut(); break;
-    case 'force': if (await ask('Commencer les coupes sans attendre toutes les annonces ?', 'Go')) act({ type: 'force' }); break;
+    case 'claimsec': Sound.click(); act({ type: 'claimsec', s: +b.dataset.s }); break;
     case 'proxy': if (await ask('Couper un fil au hasard à la place du joueur déconnecté ?', 'Couper')) act({ type: 'proxycut' }); break;
     case 'results': if (shown?.phase === 'end') showResults(shown); break;
     case 'react': UI.react = !UI.react; render(); break;
@@ -1406,6 +1426,20 @@ $('#code').addEventListener('input', e => { e.target.value = e.target.value.toUp
 $('#btnResume').onclick = () => joinRoom(LS.get('tb-lastRoom', ''), false);
 $('#btnSolo').onclick = () => { Sound.unlock(); startSolo(false); };
 $('#btnSoloResume').onclick = () => { Sound.unlock(); startSolo(true); };
+
+/* Chrono des annonces : affichage, envoi auto du brouillon, clôture par l'hôte */
+setInterval(() => {
+  const st = S; if (!st || st.phase !== 'claim' || !st.players) return;
+  const left = claimLeft(st), txt = fmtLeft(left);
+  $$('.claimTimer').forEach(e => { e.textContent = txt; e.classList.toggle('hurry', left < 6000); });
+  const cc = $('.claimclock'); if (cc) cc.classList.toggle('hurry', left < 6000);
+  const sec = Math.ceil(left / 1000);
+  if (sec !== UI.lastSec) { UI.lastSec = sec; if (sec <= 5 && sec > 0 && !UI.busy) Sound.tone(sec === 1 ? 1200 : 900, .08, { type: 'square', vol: .12 }); }
+  if (UI.claimOpen && left < 1300 && UI.draftKey === st.game + ':' + st.round) {
+    closeModal(); act({ type: 'claim', d: UI.draft.d, b: UI.draft.b }); toast('⏰ Temps écoulé : ton annonce a été envoyée.');
+  }
+  if (isHost() && Date.now() >= st.claimEnd + 1200 && Date.now() - (UI.closeT || 0) > 1500) { UI.closeT = Date.now(); handleAct(Net.me.id, { type: 'closeclaims' }); }
+}, 250);
 
 /* Tic-tac d'ambiance, qui accélère à l'approche de la fin */
 (function tickLoop() {
