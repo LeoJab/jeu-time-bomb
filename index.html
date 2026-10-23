@@ -12,7 +12,7 @@
 :root{
   --blue:#2433f2;--blue2:#4f6bff;--yellow:#ffd426;--ink:#12102b;--white:#fff;
   --red:#ff3b4e;--green:#2bd67b;--grey:#dfe1f2;--sher:#3f7dff;--mori:#ff3b4e;
-  --sh:4px 4px 0 var(--ink);--r:14px;--cw:30px;--blink:1000ms;
+  --sh:4px 4px 0 var(--ink);--hubsafe:86px;--r:14px;--cw:30px;--blink:1000ms;
 }
 *{box-sizing:border-box}
 html,body{margin:0;height:100%;background:var(--ink);color:var(--white);font-family:Rubik,system-ui,-apple-system,"Segoe UI",sans-serif;-webkit-tap-highlight-color:transparent}
@@ -52,7 +52,7 @@ input.field:focus{outline:3px solid var(--yellow);outline-offset:2px}
 
 /* ---------- Accueil ---------- */
 #home{overflow:auto}
-.home-wrap{width:min(560px,100%);margin:0 auto;padding:22px 16px 40px;display:flex;flex-direction:column;gap:18px}
+.home-wrap{width:min(560px,100%);margin:0 auto;padding:22px 16px 100px;display:flex;flex-direction:column;gap:18px}
 .logo{text-align:center;position:relative;padding-top:6px}
 .logo-bomb{width:120px;height:120px;margin:0 auto -6px;animation:bob 3s ease-in-out infinite;filter:drop-shadow(5px 5px 0 var(--ink))}
 @keyframes bob{0%,100%{transform:translateY(0) rotate(-4deg)}50%{transform:translateY(-6px) rotate(4deg)}}
@@ -75,7 +75,7 @@ input.field:focus{outline:3px solid var(--yellow);outline-offset:2px}
 
 /* ---------- Salon ---------- */
 #lobby{overflow:auto}
-.lobby-wrap{width:min(620px,100%);margin:0 auto;padding:16px 16px 40px;display:flex;flex-direction:column;gap:16px}
+.lobby-wrap{width:min(620px,100%);margin:0 auto;padding:16px 16px 100px;display:flex;flex-direction:column;gap:16px}
 .lobby-head{display:flex;align-items:center;gap:10px}
 .lobby-head .grow{flex:1}
 .roomcode{font-family:Bungee,sans-serif;font-size:clamp(2.2rem,11vw,3.4rem);letter-spacing:.14em;color:var(--yellow);
@@ -121,7 +121,7 @@ input.field:focus{outline:3px solid var(--yellow);outline-offset:2px}
   .rankbox{display:block}
   #btnLog,#btnRank{display:none}
 }
-#game.show-log .logbox{display:block;position:fixed;left:10px;right:10px;top:64px;bottom:84px;z-index:40;overflow:auto}
+#game.show-log .logbox{display:block;position:fixed;left:10px;right:10px;top:64px;bottom:96px;z-index:40;overflow:auto}
 .bombpanel{background:#2a2758;border:3px solid var(--ink);border-radius:18px;box-shadow:6px 6px 0 var(--ink);padding:8px;position:relative}
 .bombpanel svg{display:block;width:100%;height:auto;max-height:150px}
 @media (min-width:900px){.bombpanel svg{max-height:none}}
@@ -224,13 +224,13 @@ input.field:focus{outline:3px solid var(--yellow);outline-offset:2px}
 .bubble.emo{font-size:1.7rem;padding:0 8px;border-radius:50%}
 @keyframes bubble{0%{transform:scale(0) translateY(10px)}10%{transform:scale(1.15)}16%{transform:scale(1)}85%{opacity:1}100%{opacity:0;transform:translateY(-14px)}}
 
-.actionbar{display:flex;align-items:center;gap:8px;padding:10px;padding-bottom:max(10px,env(safe-area-inset-bottom));background:rgba(18,16,43,.92);border-top:3px solid #000;flex-wrap:wrap;position:relative;z-index:3}
+.actionbar{display:flex;align-items:center;gap:8px;padding:10px var(--hubsafe) 10px 10px;padding-bottom:max(10px,env(safe-area-inset-bottom));background:rgba(18,16,43,.92);border-top:3px solid #000;flex-wrap:wrap;position:relative;z-index:3}
 .status{flex:1 1 220px;font-weight:900;font-size:.98rem;min-height:40px;display:flex;align-items:center;gap:8px;line-height:1.2}
 .status.myturn{background:var(--yellow);color:var(--ink);border:3px solid var(--ink);border-radius:12px;padding:6px 10px;animation:turnPulse 1s ease-in-out infinite;box-shadow:3px 3px 0 #000}
 @keyframes turnPulse{50%{transform:scale(1.025)}}
 .acts{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
 .btn-cut{background:var(--red);color:#fff;font-family:Bungee,sans-serif;font-size:1.05rem;animation:turnPulse .7s ease-in-out infinite}
-.reactbar{position:absolute;bottom:100%;right:10px;left:10px;margin-bottom:8px;background:#fff;color:var(--ink);border:3px solid var(--ink);border-radius:14px;box-shadow:5px 5px 0 var(--ink);
+.reactbar{position:absolute;bottom:100%;right:var(--hubsafe);left:10px;margin-bottom:8px;background:#fff;color:var(--ink);border:3px solid var(--ink);border-radius:14px;box-shadow:5px 5px 0 var(--ink);
   padding:8px;display:flex;flex-wrap:wrap;gap:6px;justify-content:center;animation:popIn .2s ease}
 @media(min-width:700px){.reactbar{left:auto;width:430px}}
 .reactbar button{border:2px solid var(--ink);background:var(--grey);border-radius:10px;padding:6px 9px;font-weight:800;cursor:pointer}
@@ -240,7 +240,7 @@ input.field:focus{outline:3px solid var(--yellow);outline-offset:2px}
 
 /* ---------- Overlays ---------- */
 .overlay{position:fixed;inset:0;z-index:50;background:rgba(10,8,32,.84);backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px);
-  display:flex;align-items:center;justify-content:center;padding:16px;overflow:auto}
+  display:flex;align-items:center;justify-content:center;padding:16px 16px 96px;overflow:auto}
 .overlay>*{margin:auto}
 .modal{z-index:60}
 .mcard{width:min(440px,100%);background:#fff;color:var(--ink);border:3px solid var(--ink);border-radius:18px;box-shadow:8px 8px 0 #000;padding:18px;animation:popIn .3s cubic-bezier(.2,1.6,.4,1)}
