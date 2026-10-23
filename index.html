@@ -118,7 +118,8 @@ input.field:focus{outline:3px solid var(--yellow);outline-offset:2px}
   .side{overflow:auto;display:flex;flex-direction:column;gap:12px;padding:14px}
   .seats-wrap{overflow:auto;padding:14px}
   .logbox{display:block}
-  #btnLog{display:none}
+  .rankbox{display:block}
+  #btnLog,#btnRank{display:none}
 }
 #game.show-log .logbox{display:block;position:fixed;left:10px;right:10px;top:64px;bottom:84px;z-index:40;overflow:auto}
 .bombpanel{background:#2a2758;border:3px solid var(--ink);border-radius:18px;box-shadow:6px 6px 0 var(--ink);padding:8px;position:relative}
@@ -159,6 +160,31 @@ input.field:focus{outline:3px solid var(--yellow);outline-offset:2px}
 .claim .cb.b{background:var(--red)}
 .claim .cb.lie{background:#8b00ff;animation:shakeX .5s}
 .claim em{opacity:.6}
+.claim .cb.ready{background:var(--green);color:var(--ink);animation:readyPop .4s cubic-bezier(.2,1.8,.4,1)}
+.claim .cb.lock{background:#5a5680}
+@keyframes readyPop{from{transform:scale(0)}}
+.claim .cb.revealIn{animation:revealIn .6s cubic-bezier(.2,1.8,.4,1) backwards}
+@keyframes revealIn{0%{transform:scale(0) rotate(-25deg);opacity:0}60%{transform:scale(1.45) rotate(6deg);opacity:1;box-shadow:0 0 18px 4px var(--yellow)}100%{transform:none}}
+.countdown{font-family:Bungee,sans-serif;font-size:clamp(5rem,30vw,12rem);color:var(--yellow);text-shadow:8px 8px 0 var(--ink);line-height:1;animation:cdn .7s cubic-bezier(.2,1.8,.4,1)}
+@keyframes cdn{0%{transform:scale(3);opacity:0}40%{transform:scale(.9);opacity:1}100%{transform:scale(1)}}
+.rankbox{background:#fff;color:var(--ink);border:3px solid var(--ink);border-radius:var(--r);box-shadow:6px 6px 0 var(--ink);padding:12px}
+.rankbox h3{margin:0 0 6px;font-family:Bungee,sans-serif;font-size:1rem;display:flex;justify-content:space-between;align-items:center}
+.rankbox ol{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:5px}
+.rankbox li{display:flex;align-items:center;gap:8px;padding:5px 8px;border-radius:10px;background:var(--grey);font-weight:800;font-size:.9rem;position:relative}
+.rankbox li.me{background:#fff3b0}
+.rankbox li .pos{font-family:Bungee,sans-serif;width:26px;text-align:center}
+.rankbox li .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rankbox li .pts{font-family:Bungee,sans-serif;background:var(--ink);color:var(--yellow);border-radius:8px;padding:2px 8px;min-width:44px;text-align:center}
+.rankbox li .sub{font-size:.72rem;opacity:.65;font-weight:700}
+.rankbox li .ava{width:26px;height:26px;font-size:.7rem;border-width:2px}
+.rankbox li.up{animation:rankUp .9s cubic-bezier(.2,1.6,.4,1)}
+.rankbox li.down{animation:rankDown .9s ease}
+.rankbox li.gain .pts{animation:ptsGain 1s ease}
+@keyframes rankUp{0%{transform:translateY(36px);background:var(--green)}100%{transform:none}}
+@keyframes rankDown{0%{transform:translateY(-36px);background:#ffb3bc}100%{transform:none}}
+@keyframes ptsGain{0%,100%{transform:none}30%{transform:scale(1.5);background:var(--green);color:var(--ink)}}
+.rank-legend{font-size:.72rem;font-weight:700;opacity:.6;margin-top:6px}
+.trank{cursor:pointer}
 .cards{display:flex;gap:4px;flex-wrap:wrap}
 .card{width:var(--cw);height:calc(var(--cw)*1.42);border:2.5px solid var(--ink);border-radius:7px;display:grid;place-items:center;padding:3px;
   box-shadow:2px 2px 0 var(--ink);background:repeating-linear-gradient(45deg,#1d1a4a 0 4px,#29256a 4px 8px);color:var(--yellow);
@@ -305,6 +331,8 @@ body.burnt #app{filter:sepia(.6) saturate(1.6) hue-rotate(-20deg) brightness(.7)
 @media (min-width:600px){:root{--cw:36px}}
 @media (min-width:900px){:root{--cw:40px}.seats{grid-template-columns:repeat(auto-fill,minmax(215px,1fr));gap:16px}.seat{padding:12px}}
 @media (min-width:1300px){:root{--cw:42px}.seats{grid-template-columns:repeat(auto-fill,minmax(240px,1fr))}}
+@media (max-width:899px){.rankbox{display:none}#game.show-rank .rankbox{display:block;position:fixed;left:10px;right:10px;top:64px;max-height:calc(100dvh - 160px);z-index:40;overflow:auto}}
+@media (max-width:430px){.tchip{font-size:.72rem;padding:4px 6px}.topbar{gap:6px}.tchip.code{display:none}.topbar .grow{flex-wrap:nowrap}}
 </style>
 <script src="/_sdk.js"></script>
 </head>
@@ -372,12 +400,14 @@ body.burnt #app{filter:sepia(.6) saturate(1.6) hue-rotate(-20deg) brightness(.7)
     <header class="topbar">
       <button class="btn btn-icon" id="btnQuit" title="Quitter">⏏</button>
       <div class="grow" id="topChips"></div>
+      <button class="btn btn-icon" id="btnRank" title="Classement">🏆</button>
       <button class="btn btn-icon" id="btnLog" title="Historique">📜</button>
       <button class="btn btn-icon" id="btnSound" title="Son">🔊</button>
     </header>
     <div class="board" id="board">
       <aside class="side">
         <div class="bombpanel" id="bombPanel"></div>
+        <div class="rankbox" id="rankBox"></div>
         <div class="logbox" id="logBox"></div>
       </aside>
       <div class="seats-wrap"><div class="seats" id="seats"></div></div>
@@ -608,8 +638,11 @@ const Engine = {
       hands: {}, claims: {}, pliers: pick(players).id, log: [], last: null, winner: null, reason: null,
       scores: clone(prev?.scores || {}), nonces: clone(prev?.nonces || {}), bots: clone(prev?.bots || [])
     };
+    st.players.forEach(p => Engine.sc(st, p));
     this.deal(st, cards); return st;
   },
+  PTS_D: 1, PTS_WIN: 3,
+  sc(st, p) { const sc = st.scores[p.id] || (st.scores[p.id] = { name: p.name, w: 0, g: 0 }); sc.name = p.name; sc.pts = sc.pts || 0; sc.d = sc.d || 0; if (p.bot) sc.bot = true; return sc; },
   deal(st, cards) {
     shuffle(cards); const per = cards.length / st.players.length;
     st.players.forEach((p, i) => st.hands[p.id] = cards.slice(i * per, (i + 1) * per).map(k => ({ k, up: false })));
@@ -634,7 +667,7 @@ const Engine = {
       st.last = { seq: st.seq, from: actor, to: a.to, i: a.i, k: c.k, round: st.round };
       st.log.push({ r: st.round, f: actor, t: a.to, k: c.k }); if (st.log.length > 64) st.log.shift();
       if (c.k === 'B') return this.end(st, 'M', 'bomb');
-      if (c.k === 'D') { st.found++; if (st.found >= st.totalD) return this.end(st, 'S', 'defused'); }
+      if (c.k === 'D') { const sc = this.sc(st, st.players.find(p => p.id === actor)); sc.pts += this.PTS_D; sc.d++; st.found++; if (st.found >= st.totalD) return this.end(st, 'S', 'defused'); }
       st.pliers = a.to;
       if (st.cuts >= st.players.length) {
         if (st.round >= this.ROUNDS) return this.end(st, 'M', 'time');
@@ -647,7 +680,7 @@ const Engine = {
   },
   end(st, w, reason) {
     st.winner = w; st.reason = reason; st.phase = 'end';
-    st.players.forEach(p => { const sc = st.scores[p.id] || (st.scores[p.id] = { name: p.name, w: 0, g: 0 }); sc.name = p.name; sc.g++; if (st.roles[p.id] === w) sc.w++; });
+    st.players.forEach(p => { const sc = this.sc(st, p); sc.g++; if (st.roles[p.id] === w) { sc.w++; sc.pts += this.PTS_WIN; } });
     return st;
   }
 };
@@ -802,11 +835,12 @@ function arbiterTick() {
   } else if (st.phase === 'cut') {
     const h = st.players.find(p => p.id === st.pliers);
     if (h && h.bot) {
+      const extra = st.cuts === 0 ? 4200 : 0;
       botT = setTimeout(() => {
         if (S.v !== v) return; const c = Bots.cut(S, h.id); if (!c) return;
         sendAim(c.to, c.i);
         botT = setTimeout(() => { if (S.v === v) handleAct(h.id, c); }, 1100 + rint(700));
-      }, 2600 + rint(1400));
+      }, extra + 2600 + rint(1400));
     }
   }
 }
@@ -910,6 +944,7 @@ async function presentState(st) {
   if (st.phase === 'lobby' || !st.players) { UI.busy = false; closeModal(); render(true); return; }
   if (sameGame && st.winner && !old.winner) { render(true); await endSequence(st); UI.busy = false; render(true); return; }
   if (sameGame && st.round > old.round) { closeModal(); render(true); await roundInterlude(st); }
+  if (sameGame && st.round === old.round && old.phase === 'claim' && st.phase === 'cut') await claimReveal(st);
   if (!sameGame && st.phase !== 'end' && st.roles[myId()]) { render(true); await roleReveal(st); }
   UI.busy = false; render(true);
   if (!sameGame && st.phase === 'end' && UI.resultsFor !== st.game) showResults(st);
@@ -1000,6 +1035,26 @@ async function roleReveal(st) {
   closeOverlay();
 }
 
+async function claimReveal(st) {
+  closeModal();
+  UI.claimHide = true; render(true);
+  const ov = showOverlay(`<div class="interlude"><div class="il-small">Tout le monde a annoncé…</div><div class="countdown" id="cdn">3</div><div class="il-sub">Révélation des annonces !</div></div>`);
+  for (const n of ['3', '2', '1']) {
+    const c = ov.querySelector('#cdn'); if (c) { c.textContent = n; c.style.animation = 'none'; void c.offsetWidth; c.style.animation = ''; }
+    Sound.tone(n === '1' ? 880 : 660, .15, { type: 'square', vol: .15 }); FX.shake(false);
+    await wait(650);
+  }
+  closeOverlay();
+  UI.claimHide = false; UI.revealAnim = true; render(true);
+  Sound.whoosh(); FX.flash('#ffd426', 350, .35);
+  $$('.seat').forEach((seat, i) => setTimeout(() => {
+    Sound.pop();
+    const b = seat.querySelector('.cb.b'); if (b) { const p = center(b); FX.sparks(p.x, p.y, ['#ff3b4e', '#ffd426', '#fff'], 18, 5); }
+  }, 150 + i * 160));
+  await wait(400 + st.players.length * 160);
+  UI.revealAnim = false;
+}
+
 async function roundInterlude(st) {
   const per = st.hands[st.players[0].id].length;
   let cards = ''; for (let i = 0; i < per; i++) cards += `<div class="card" style="--dx:${(i - per / 2) * -14}px;--dr:${(i - per / 2) * 12}deg;animation-delay:${i * .08}s">?</div>`;
@@ -1062,10 +1117,10 @@ function showResults(st) {
   const me = myId(), myRole = st.roles?.[me], won = myRole && myRole === st.winner, L = st.last;
   const who = id => id === me ? '<b>Tu</b> as coupé' : `<b>${esc(pname(st, id))}</b> a coupé`;
   let title, sub;
-  if (st.winner === 'M') { title = st.reason === 'bomb' ? '💥 BIG BEN A SAUTÉ !' : '⏰ TEMPS ÉCOULÉ !'; sub = st.reason === 'bomb' ? `${who(L.from)} la bombe chez <b>${esc(pname(st, L.to))}</b>. Victoire de Moriarty 😈` : `Les 4 manches sont passées, la bombe explose. Victoire de Moriarty 😈`; }
-  else { title = '🔵 BOMBE DÉSAMORCÉE !'; sub = `${who(L.from)} le dernier fil chez <b>${esc(pname(st, L.to))}</b>. Victoire de Sherlock 🕵️`; }
+  if (st.winner === 'M') { title = st.reason === 'bomb' ? '💥 BIG BEN A SAUTÉ !' : '⏰ TEMPS ÉCOULÉ !'; sub = st.reason === 'bomb' ? `${who(L.from)} la bombe chez <b>${esc(pname(st, L.to))}</b>. Victoire de Moriarty 😈` : `Les 4 manches sont passées, la bombe explose. Victoire de Moriarty 😈`; }
+  else { title = '🔵 BOMBE DÉSAMORCÉE !'; sub = `${who(L.from)} le dernier fil chez <b>${esc(pname(st, L.to))}</b>. Victoire de Sherlock 🕵️`; }
   const roles = st.players.map((p, i) => `<li class="${st.roles[p.id]} ${st.roles[p.id] === st.winner ? 'win' : ''}" style="animation-delay:${.5 + i * .18}s">${avatarHTML(p)}<span>${st.roles[p.id] === 'S' ? '🕵️' : '😈'} ${esc(p.name)}</span></li>`).join('');
-  const sc = Object.entries(st.scores || {}).sort((a, b) => b[1].w - a[1].w || a[1].g - b[1].g).slice(0, 10);
+  const sc = rankList(st).slice(0, 10).map(r => [r.id, r]);
   const host = isHost();
   const ov = showOverlay(`<div class="results">
     <div class="res-title ${st.winner}">${title}</div>
@@ -1074,7 +1129,7 @@ function showResults(st) {
     <div class="panel res-box"><b>Les rôles étaient…</b><ul class="res-roles" style="margin-top:8px">${roles}</ul>
       ${st.leftover.length ? `<div class="hint">Rôle écarté : ${st.leftover.map(r => r === 'S' ? 'Sherlock' : 'Moriarty').join(', ')}</div>` : ''}
       <div class="hint">Fils de désamorçage trouvés : ${st.found}/${st.totalD} · Manche ${st.round}/${Engine.ROUNDS}</div>
-      ${sc.length ? `<div class="scores"><b>🏆 Classement de la salle</b><table>${sc.map(([id, s], i) => `<tr><td>${['🥇', '🥈', '🥉'][i] || (i + 1) + '.'} ${esc(s.name)}</td><td>${s.w} victoire${s.w > 1 ? 's' : ''} / ${s.g}</td></tr>`).join('')}</table></div>` : ''}
+      ${sc.length ? `<div class="scores"><b>🏆 Classement de la salle</b><table>${sc.map(([id, s], i) => `<tr><td>${['🥇', '🥈', '🥉'][i] || (i + 1) + '.'} ${esc(s.name)}</td><td>${s.pts} pts · ${s.w}/${s.g} 🏆</td></tr>`).join('')}</table></div>` : ''}
     </div>
     <div class="row">
       ${host ? `<button class="btn btn-yellow" id="rAgain">🔁 Rejouer</button><button class="btn" id="rLobby">🏠 Salon</button>` : `<div class="wait" style="color:#fff">En attente de l'hôte<span class="dots"></span></div>`}
@@ -1132,7 +1187,7 @@ function renderLobby(st) {
   const players = lobbyPlayers(st), host = isHost(), n = players.length;
   const humans = Net.mode === 'solo' ? 1 : Net.roster.length;
   const roleInfo = Engine.ROLES[n] ? `<span class="chip S">🕵️ ${Engine.ROLES[n][0]} Sherlock</span><span class="chip M">😈 ${Engine.ROLES[n][1]} Moriarty</span>${n === 4 || n === 7 ? '<span class="chip">🎲 1 rôle écarté</span>' : ''}<span class="chip">🔵 ${n} fils à trouver</span>` : '';
-  const sc = Object.entries(st.scores || {}).sort((a, b) => b[1].w - a[1].w).slice(0, 8);
+  const sc = rankList({ players: lobbyPlayers(st), scores: st.scores }).slice(0, 8).map(r => [r.id, r]);
   w.innerHTML = head + `
     ${Net.mode === 'online' ? `<div class="roomcode" data-a="copy" title="Copier">${esc(Net.code)}<small>Code de la salle · invite tes potes avec le bouton « Inviter » du hub</small></div>`
       : `<div class="roomcode" style="font-size:2rem">ENTRAÎNEMENT<small>Toi contre des bots. Parfait pour apprendre !</small></div>`}
@@ -1147,7 +1202,7 @@ function renderLobby(st) {
           ${n < 4 ? `<p class="hint" style="text-align:center">Encore ${4 - n} joueur${4 - n > 1 ? 's' : ''} (ou bots) pour commencer.</p>` : ''}`
           : `<div class="wait">En attente que <b>${esc(Net.roster[0]?.name || "l'hôte")}</b> lance la partie<span class="dots"></span></div>`}
       </div>
-      ${sc.length ? `<div class="scores" style="margin-top:14px"><b>🏆 Classement de la salle</b><table>${sc.map(([id, s], i) => `<tr><td>${['🥇', '🥈', '🥉'][i] || (i + 1) + '.'} ${esc(s.name)}</td><td>${s.w}/${s.g}</td></tr>`).join('')}</table></div>` : ''}
+      ${sc.length ? `<div class="scores" style="margin-top:14px"><b>🏆 Classement de la salle</b><table>${sc.map(([id, s], i) => `<tr><td>${['🥇', '🥈', '🥉'][i] || (i + 1) + '.'} ${esc(s.name)}</td><td>${s.pts} pts · ${s.w}/${s.g} 🏆</td></tr>`).join('')}</table></div>` : ''}
     </div>`;
 }
 
@@ -1194,16 +1249,20 @@ function renderGame(st) {
   }
   $('#logBox').innerHTML = `<h3>📜 Historique <button class="btn btn-small" data-a="log" id="logClose" style="${UI.logOpen ? '' : 'display:none'}">✕</button></h3><ul>${lh || '<li class="hint">Aucun fil coupé pour l\'instant… la tension monte.</li>'}</ul>`;
   $('#game').classList.toggle('show-log', UI.logOpen);
+  $('#game').classList.toggle('show-rank', !!UI.rankOpen);
+  renderRank(st);
   // sièges : moi d'abord, puis l'ordre de table
   const idx = Math.max(0, st.players.findIndex(p => p.id === me));
   const order = st.players.slice(idx).concat(st.players.slice(0, idx));
   const canCut = isPlayer && st.phase === 'cut' && st.pliers === me && !UI.busy;
   if (UI.sel && (UI.sel.v !== st.v || !canCut)) UI.sel = null;
-  $('#seats').innerHTML = order.map(p => {
+  $('#seats').innerHTML = order.map((p, seatI) => {
     const h = st.hands[p.id] || [], cl = st.claims[p.id], isMe = p.id === me, holder = st.pliers === p.id && st.phase !== 'end';
     const revD = h.filter(x => x.up && x.k === 'D').length, lie = cl && revD > cl.d;
-    const claim = cl ? `<span class="cb d ${lie ? 'lie' : ''}" title="${lie ? 'Plus de fils trouvés qu\'annoncé !' : ''}">🔵 ${cl.d}${lie ? ' 🤥' : ''}</span><span class="cb ${cl.b ? 'b' : ''}">💣 ${cl.b ? 'OUI' : 'non'}</span>`
-      : (st.phase === 'end' ? '<em>—</em>' : `<em>annonce en cours<span class="dots"></span></em>`);
+    const hide = st.phase === 'claim' || UI.claimHide, ra = UI.revealAnim ? ` revealIn" style="animation-delay:${.15 + seatI * .16}s` : '';
+    const claim = !cl ? (st.phase === 'end' ? '<em>—</em>' : `<em>annonce en cours<span class="dots"></span></em>`)
+      : (hide && !isMe) ? `<span class="cb ready">✅ Annonce prête</span>`
+      : `<span class="cb d ${lie ? 'lie' : ''}${ra}" title="${lie ? 'Plus de fils trouvés qu\'annoncé !' : ''}">🔵 ${cl.d}${lie ? ' 🤥' : ''}</span><span class="cb ${cl.b ? 'b' : ''}${ra}">💣 ${cl.b ? 'OUI' : 'non'}</span>${hide ? '<span class="cb lock" title="Visible par toi seul jusqu\'à la révélation">🔒 secret</span>' : ''}`;
     const cards = h.map((x, i) => {
       const can = canCut && !isMe && !x.up;
       const sel = UI.sel && UI.sel.to === p.id && UI.sel.i === i;
@@ -1223,6 +1282,32 @@ function renderGame(st) {
   renderActionbar(st, { me, isPlayer, host, canCut });
 }
 
+function rankList(st) {
+  const ids = new Set((st.players || []).map(p => p.id));
+  return Object.entries(st.scores || {}).filter(([id, s]) => ids.has(id) || !s.bot)
+    .map(([id, s]) => ({ id, name: s.name, pts: s.pts || 0, w: s.w || 0, g: s.g || 0, d: s.d || 0, bot: !!s.bot, here: ids.has(id) }))
+    .sort((a, b) => b.pts - a.pts || b.w - a.w || b.d - a.d || a.name.localeCompare(b.name));
+}
+function renderRank(st) {
+  const list = rankList(st), prev = UI.prevRank || {}, now = {};
+  const html = list.map((r, i) => {
+    now[r.id] = { pos: i, pts: r.pts };
+    const was = prev[r.id], cls = [r.id === myId() ? 'me' : ''];
+    if (was && was.pos > i) cls.push('up'); else if (was && was.pos < i) cls.push('down');
+    if (was && r.pts > was.pts) cls.push('gain');
+    const rk = list.filter(x => x.pts > r.pts).length, pos = r.pts ? (['🥇', '🥈', '🥉'][rk] || rk + 1) : rk + 1;
+    const p = st.players.find(x => x.id === r.id) || { id: r.id, name: r.name, bot: r.bot };
+    return `<li class="${cls.join(' ')}"><span class="pos">${pos}</span>${avatarHTML(p)}<span class="nm">${esc(r.name)}<br><span class="sub">🔵 ${r.d} coupé${r.d > 1 ? 's' : ''} · ${r.w}/${r.g} victoire${r.w > 1 ? 's' : ''}</span></span>${was && r.pts > was.pts ? `<span class="sub" style="color:var(--green);font-weight:900">+${r.pts - was.pts}</span>` : ''}<span class="pts">${r.pts}</span></li>`;
+  }).join('');
+  $('#rankBox').innerHTML = `<h3>🏆 Classement en direct <button class="btn btn-small" data-a="rank" style="${UI.rankOpen ? '' : 'display:none'}">✕</button></h3><ol>${html}</ol>
+    <div class="rank-legend">+${Engine.PTS_D} pt par fil 🔵 coupé · +${Engine.PTS_WIN} pts par victoire · cumulé sur toute la salle</div>`;
+  // le petit chip du haut : ma place
+  const mi = list.findIndex(r => r.id === myId());
+  if (mi >= 0) { const mp = list[mi].pts, mine = list.filter(x => x.pts > mp).length; $('#topChips').insertAdjacentHTML('beforeend', `<span class="tchip trank" data-a="rank" title="${mp} pt${mp > 1 ? 's' : ''}">🏆 ${mine + 1}${mine ? 'e' : 'er'}</span>`); }
+  // ne mémorise que les changements d'état réels (pas les simples re-rendus)
+  if (UI.rankV !== st.v) { UI.rankV = st.v; UI.prevRankShown = prev; UI.prevRank = now; }
+}
+
 function renderActionbar(st, { me, isPlayer, host, canCut }) {
   const ab = $('#actionbar');
   let status = '', cls = '', btns = '';
@@ -1233,7 +1318,7 @@ function renderActionbar(st, { me, isPlayer, host, canCut }) {
   } else if (st.phase === 'claim') {
     const waiting = st.players.filter(p => !st.claims[p.id]);
     if (isPlayer && !st.claims[me]) { status = '📣 Fais ton annonce : combien de 🔵 et as-tu la 💣 ?'; cls = 'myturn'; btns += `<button class="btn btn-yellow" data-a="claim">📣 Annoncer</button>`; }
-    else status = `⏳ Annonces en attente : ${waiting.map(p => esc(p.name)).join(', ')}`;
+    else status = `🤫 Annonces secrètes en cours… On attend : ${waiting.map(p => esc(p.name)).join(', ')}. Tout sera révélé en même temps !`;
     if (host && waiting.some(p => !present(p.id))) btns += `<button class="btn btn-small" data-a="force">⏩ Lancer sans attendre</button>`;
   } else if (st.phase === 'cut') {
     if (canCut) {
@@ -1293,12 +1378,13 @@ document.addEventListener('click', async e => {
       UI.react = false; render(); sendReact(myId(), b.dataset.t); break;
     }
     case 'peek': UI.peek = true; render(); Sound.click(); clearTimeout(UI.peekT); UI.peekT = setTimeout(() => { UI.peek = false; render(); }, 2200); break;
-    case 'log': UI.logOpen = !UI.logOpen; render(); break;
+    case 'log': UI.logOpen = !UI.logOpen; UI.rankOpen = false; render(); break;
+    case 'rank': UI.rankOpen = !UI.rankOpen; UI.logOpen = false; render(); break;
   }
 });
 document.addEventListener('keydown', e => {
   if ((e.key === 'Enter' || e.key === ' ') && e.target.classList?.contains('can')) { e.preventDefault(); e.target.click(); }
-  if (e.key === 'Escape') { if (UI.react || UI.logOpen) { UI.react = false; UI.logOpen = false; render(); } }
+  if (e.key === 'Escape') { if (UI.react || UI.logOpen || UI.rankOpen) { UI.react = false; UI.logOpen = false; UI.rankOpen = false; render(); } }
 });
 function doCut() {
   if (!UI.sel || !shown || UI.busy) return;
@@ -1309,6 +1395,7 @@ function doCut() {
 $('#btnQuit').setAttribute('data-a', 'quitgame');
 $('#btnSound').setAttribute('data-a', 'sound');
 $('#btnLog').setAttribute('data-a', 'log');
+$('#btnRank').setAttribute('data-a', 'rank');
 $('#btnCreate').onclick = () => {
   const L = 'ABCDEFGHJKLMNPQRSTUVWXYZ'; let c = ''; for (let i = 0; i < 4; i++) c += L[rint(L.length)];
   Sound.unlock(); Sound.whoosh(); joinRoom(c, true);
