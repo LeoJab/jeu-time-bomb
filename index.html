@@ -759,6 +759,19 @@ const present = id => Net.mode === 'solo' || isBot(id) || Net.roster.some(p => p
 const myId = () => Net.me?.id;
 const pname = (st, id) => (st.players?.find(p => p.id === id)?.name) || (Net.roster.find(p => p.id === id)?.name) || '???';
 
+function newPartieId() { return ((Net.code || 'SOLO') + '-' + Date.now().toString(36) + rint(1296).toString(36)).replace(/[^A-Za-z0-9_.:-]/g, '').slice(0, 64); }
+/* Classement « all time » du hub : chaque joueur envoie son propre résultat, une fois par partie terminée (en ligne uniquement) */
+function reportEnd(st) {
+  if (Net.mode !== 'online' || !st || st.phase !== 'end' || !st.winner || !st.partie) return;
+  const me = myId(), role = st.roles?.[me]; if (!role) return;
+  const sent = LS.get('tb-reported-' + me, []); if (sent.includes(st.partie)) return;
+  LS.set('tb-reported-' + me, [...sent, st.partie].slice(-50));
+  const gagne = role === st.winner;
+  const score = st.log.filter(e => e.f === me && e.k === 'D').length * Engine.PTS_D + (gagne ? Engine.PTS_WIN : 0);
+  if (window.ChadGang && ChadGang.finPartie) {
+    try { ChadGang.finPartie({ gagne, partie: st.partie, score }).catch(() => {}); } catch (e) {}
+  }
+}
 function lobbyState(prev) { return { phase: 'lobby', game: null, claimSec: prev?.claimSec || 30, bots: clone(prev?.bots || []), scores: clone(prev?.scores || {}), nonces: clone(prev?.nonces || {}) }; }
 function lobbyPlayers(st) {
   const humans = Net.mode === 'solo' ? [{ id: Net.me.id, name: Net.me.name }] : Net.roster.map(p => ({ id: p.id, name: p.name }));
@@ -813,7 +826,7 @@ function handleAct(actor, a) {
       break;
     case 'rmbot': if (byHost && st.phase === 'lobby' && st.bots.length) { st.bots = st.bots.filter(b => b.id !== a.id); next = st; } break;
     case 'start':
-      if (byHost && st.phase === 'lobby') { const pl = lobbyPlayers(st); if (pl.length >= 4 && pl.length <= 8) { next = Engine.newGame(shuffle(pl), st); next.early = Net.mode === 'solo'; } }
+      if (byHost && st.phase === 'lobby') { const pl = lobbyPlayers(st); if (pl.length >= 4 && pl.length <= 8) { next = Engine.newGame(shuffle(pl), st); next.early = Net.mode === 'solo'; next.partie = newPartieId(); } }
       break;
     case 'again':
       if (byHost && st.phase === 'end') {
@@ -821,7 +834,7 @@ function handleAct(actor, a) {
         const bots = st.players.filter(p => p.bot).map(p => ({ id: p.id, name: p.name, bot: true }));
         const base = { scores: st.scores, nonces: st.nonces, bots, claimSec: st.claimSec };
         next = pl.length >= 4 ? Engine.newGame(shuffle(pl), base) : lobbyState(base);
-        if (next.players) next.early = Net.mode === 'solo';
+        if (next.players) { next.early = Net.mode === 'solo'; next.partie = newPartieId(); }
       }
       break;
     case 'tolobby':
@@ -957,6 +970,7 @@ async function presentState(st) {
   if (!sameGame) { closeOverlay(); FX.clearCracks(); UI.sel = null; UI.claimSkip = null; }
   if (sameGame && st.last && st.last.seq === (old.seq || 0) + 1 && old.phase === 'cut') await animateCut(st.last, old);
   shown = st; UI.sel = null; UI.aim = null;
+  reportEnd(st);
   UI.justFound = sameGame && st.found > old.found;
   if (st.phase === 'lobby' || !st.players) { UI.busy = false; closeModal(); render(true); return; }
   if (sameGame && st.winner && !old.winner) { render(true); await endSequence(st); UI.busy = false; render(true); return; }
@@ -1167,11 +1181,12 @@ function showResults(st) {
    ===================================================================== */
 const COLORS = ['#ff4d6d', '#3f7dff', '#2bd67b', '#ff9f1c', '#a259ff', '#00b8d9', '#e76f51', '#8ac926', '#ff66c4'];
 function avatarHTML(p) {
+  const cg = Net.mode === 'online' && !p.bot && !isBot(p.id) ? ` data-chadgang-id="${esc(p.id)}"` : '';
   const url = p.id === myId() && Net.hubMe?.avatar ? Net.hubMe.avatar : Net.avatars[p.id];
-  if (url) return `<span class="ava"><img src="${esc(url)}" alt="" referrerpolicy="no-referrer"></span>`;
+  if (url) return `<span class="ava"${cg}><img src="${esc(url)}" alt="" referrerpolicy="no-referrer"></span>`;
   let h = 0; for (const ch of String(p.id)) h = (h * 31 + ch.charCodeAt(0)) | 0;
   const nm = String(p.name || '?').replace('🤖 ', '');
-  return `<span class="ava" style="background:${COLORS[Math.abs(h) % COLORS.length]}">${p.bot ? '🤖' : esc([...nm][0]?.toUpperCase() || '?')}</span>`;
+  return `<span class="ava"${cg} style="background:${COLORS[Math.abs(h) % COLORS.length]}">${p.bot ? '🤖' : esc([...nm][0]?.toUpperCase() || '?')}</span>`;
 }
 function show(id) { $$('.screen').forEach(s => s.classList.toggle('active', s.id === id)); }
 
